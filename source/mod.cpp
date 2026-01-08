@@ -13,49 +13,60 @@
 #include <spm/seqdrv.h>
 #include <spm/seqdef.h>
 #include <spm/system.h>
+
 #include <wii/os/OSError.h>
-#include <msl/string.h>
-#include <msl/stdio.h>
 #include <wii/gx.h>
 
+#include <msl/string.h>
+#include <msl/stdio.h>
+
 namespace mod {
+
 /*
+    =========================
     Title Screen Custom Text
-    Prints "SPM Rel Loader" at the top of the title screen
+    =========================
 */
 
-static spm::seqdef::SeqFunc *seq_titleMainReal;
-static void seq_titleMainOverride(spm::seqdrv::SeqWork *wp)
+static spm::seqdef::SeqFunc* seq_titleMainReal;
+
+static void seq_titleMainOverride(spm::seqdrv::SeqWork* wp)
 {
     wii::gx::GXColor green = {0, 255, 0, 255};
+    const char* msg = "SPM-Door-Rando";
     f32 scale = 0.8f;
-    const char * msg = "SPM-Door-Rando";
+
     spm::fontmgr::FontDrawStart();
     spm::fontmgr::FontDrawEdge();
     spm::fontmgr::FontDrawColor(&green);
     spm::fontmgr::FontDrawScale(scale);
     spm::fontmgr::FontDrawNoiseOff();
     spm::fontmgr::FontDrawRainbowColorOff();
+
     f32 x = -((spm::fontmgr::FontGetMessageWidth(msg) * scale) / 2);
     spm::fontmgr::FontDrawString(x, 200.0f, msg);
+
     seq_titleMainReal(wp);
 }
 
 static void titleScreenCustomTextPatch()
 {
-    seq_titleMainReal = spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main;
-    spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main = &seq_titleMainOverride;
+    seq_titleMainReal =
+        spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main;
+    spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main =
+        &seq_titleMainOverride;
 }
 
-s32 (*evt_door_set_dokan_descs)(spm::evtmgr::EvtEntry* entry, bool firstRun);
-s32 (*evt_door_set_map_door_descs)(spm::evtmgr::EvtEntry* entry, bool firstRun);
-s32 (*evt_machi_set_elv_descs)(spm::evtmgr::EvtEntry* entry, bool firstRun);
+/*
+    =========================
+    Map Groups
+    =========================
+*/
 
-// Credit goes to Seeky's Practice Codes
 struct EntranceNameList
 {
     int count;
-    const char * names[];
+    const char* names[];
 };
 
 struct MapGroup
@@ -63,26 +74,167 @@ struct MapGroup
     char name[4];
     u16 firstId;
     u16 count;
-    EntranceNameList ** entranceNames;
+    EntranceNameList** entranceNames;
 };
 
 static MapGroup groups[] = {
-  //  {"aa1", 1,  2, 0}, {"aa2", 1,  2, 0}, {"aa3",  1,  1, 0}, {"aa4", 1,  1, 0}, // cutscene, commenting out for softlock reasons
-  //  {"bos", 1,  1, 0}, {"dos", 1,  1, 0}, // misc, commenting out for softlock reasons 
-    {"dan", 11, 14, 0}, {"mac", 1, 30, 0}, // Flipside/Flopside
-    {"he1", 1,  6, 0}, {"he2", 1,  9, 0}, {"he3",  1,  8, 0}, {"he4", 1, 12, 0}, // chapter 1
-    {"mi1", 1, 11, 0}, {"mi2", 1, 11, 0}, {"mi3",  1,  6, 0}, {"mi4", 1, 15, 0}, // chapter 2
-    {"ta1", 1,  9, 0}, {"ta2", 1,  6, 0}, {"ta3",  1,  8, 0}, {"ta4", 1, 15, 0}, // chapter 3
-    {"sp1", 1,  7, 0}, {"sp2", 1, 10, 0}, {"sp3",  1,  7, 0}, {"sp4", 1, 17, 0}, // chapter 4
-    {"gn1", 1,  5, 0}, {"gn2", 1,  6, 0}, {"gn3",  1, 16, 0}, {"gn4", 1, 17, 0}, // chapter 5
-    {"wa1", 1, 27, 0}, {"wa2", 1, 25, 0}, {"wa3",  1, 25, 0}, {"wa4", 1, 26, 0}, // chapter 6
-    {"an1", 1, 11, 0}, {"an2", 1, 10, 0}, {"an3",  1, 16, 0}, {"an4", 1, 12, 0}, // chapter 7
-    {"ls1", 1, 12, 0}, {"ls2", 1, 18, 0}, {"ls3",  1, 13, 0}, {"ls4", 1, 13, 0}, // chapter 8
-//  {"mg1", 1,  1, 0}, {"mg2", 1,  5, 0}, {"mg3",  1,  5, 0}, {"mg4", 1,  1, 0}, // minigames
-//  {"tst", 1,  2, 0}, {"kaw", 1,  5, 0}                                         // half-removed
+    /*{"dan", 11, 14, 0},*/ {"mac", 1, 30, 0},
+    {"he1", 1, 6, 0}, {"he2", 1, 9, 0}, {"he3", 1, 8, 0}, {"he4", 1, 12, 0},
+    {"mi1", 1, 11, 0}, {"mi2", 1, 11, 0}, {"mi3", 1, 6, 0}, {"mi4", 1, 15, 0},
+    {"ta1", 1, 9, 0}, {"ta2", 1, 6, 0}, {"ta3", 1, 8, 0}, {"ta4", 1, 15, 0},
+    {"sp1", 1, 7, 0}, {"sp2", 1, 10, 0}, {"sp3", 1, 7, 0}, {"sp4", 1, 17, 0},
+    {"gn1", 1, 5, 0}, {"gn2", 1, 6, 0}, {"gn3", 1, 16, 0}, {"gn4", 1, 17, 0},
+    {"wa1", 1, 27, 0}, {"wa2", 1, 25, 0}, {"wa3", 1, 25, 0}, {"wa4", 1, 26, 0},
+    {"an1", 1, 11, 0}, {"an2", 1, 10, 0}, {"an3", 1, 16, 0}, {"an4", 1, 12, 0},
+    {"ls1", 1, 12, 0}, {"ls2", 1, 18, 0}, {"ls3", 1, 13, 0}, {"ls4", 1, 12, 0},
 };
 
-#define GROUP_COUNT 34
+#define GROUP_COUNT 33
+
+/*
+    =========================
+    Persistent Door Mapping
+    =========================
+*/
+
+#define MAX_RANDOMIZED_DOORS 512
+
+struct DoorMapping
+{
+    char srcGroup[4];
+    const char* entrance;
+    const char* destMap;
+};
+
+static DoorMapping gDoorMap[MAX_RANDOMIZED_DOORS];
+static int gDoorMapCount = 0;
+
+/*
+    =========================
+    Current Map Group
+    =========================
+*/
+
+static s32 gCurrentMapGroup = -1;
+
+static void initCurrentMapGroup()
+{
+  if (gCurrentMapGroup != -1)
+    return;
+
+  gCurrentMapGroup = spm::system::rand() % GROUP_COUNT;
+
+  if (msl::string::strcmp(groups[gCurrentMapGroup].name, "mac") == 0)
+  {
+    switch (gCurrentMapGroup)
+    {
+    case 10:
+      gCurrentMapGroup = 11;
+      break;
+    case 13:
+      gCurrentMapGroup = 14;
+      break;
+    case 20:
+      gCurrentMapGroup = 22;
+      break;
+    case 23:
+      gCurrentMapGroup = 30;
+      break;
+    }
+  }
+
+  wii::os::OSReport(
+      "[DoorRando] Source group: %s\n",
+      groups[gCurrentMapGroup].name);
+}
+
+/*
+    =========================
+    Door Mapping Helpers
+    =========================
+*/
+
+static const char *findDoorMapping(
+    const char *srcGroup,
+    const char *entrance)
+{
+  for (int i = 0; i < gDoorMapCount; i++)
+  {
+    if (msl::string::strcmp(gDoorMap[i].srcGroup, srcGroup) == 0 &&
+        msl::string::strcmp(gDoorMap[i].entrance, entrance) == 0)
+    {
+      return gDoorMap[i].destMap;
+    }
+  }
+  return nullptr;
+}
+
+static const char *createDoorDestination()
+{
+  s32 destGroup = spm::system::rand() % GROUP_COUNT;
+
+  if (msl::string::strcmp(groups[destGroup].name, "mac") == 0)
+  {
+    switch (destGroup)
+    {
+    case 10:
+      destGroup = 11;
+      break;
+    case 13:
+      destGroup = 14;
+      break;
+    case 20:
+      destGroup = 22;
+      break;
+    case 23:
+      destGroup = 30;
+      break;
+    }
+  }
+
+  s32 room = (spm::system::rand() % groups[destGroup].count) + 1;
+
+  char buf[32];
+  msl::stdio::sprintf(
+      buf, "%s_%02d",
+      groups[destGroup].name, room);
+
+  char *dest = (char *)spm::memory::__memAlloc(
+      spm::memory::Heap::HEAP_MAP,
+      msl::string::strlen(buf) + 1);
+  msl::string::strcpy(dest, buf);
+
+  return dest;
+}
+
+static const char *getOrCreateDestination(const char *entrance)
+{
+  initCurrentMapGroup();
+
+  const char *srcGroup = groups[gCurrentMapGroup].name;
+
+  const char *existing =
+      findDoorMapping(srcGroup, entrance);
+
+  if (existing)
+    return existing;
+
+  const char *dest = createDoorDestination();
+
+  if (gDoorMapCount < MAX_RANDOMIZED_DOORS)
+  {
+    DoorMapping *m = &gDoorMap[gDoorMapCount++];
+    msl::string::strcpy(m->srcGroup, srcGroup);
+    m->entrance = entrance;
+    m->destMap = dest;
+
+    wii::os::OSReport(
+        "[DoorRando] %s:%s -> %s\n",
+        srcGroup, entrance, dest);
+  }
+
+  return dest;
+}
 
 static EntranceNameList * scanScript(const int * script)
 {
@@ -235,137 +387,87 @@ void scanEntrances()
     }
 }
 
-s32 new_evt_door_set_dokan_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
+/*
+    =========================
+    Hooked Event Functions
+    =========================
+*/
+
+s32 (*evt_door_set_dokan_descs)(spm::evtmgr::EvtEntry*, bool);
+s32 (*evt_door_set_map_door_descs)(spm::evtmgr::EvtEntry*, bool);
+s32 (*evt_machi_set_elv_descs)(spm::evtmgr::EvtEntry*, bool);
+
+s32 new_evt_door_set_dokan_descs(
+    spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
 {
     if (firstRun)
     {
-    spm::evtmgr::EvtVar* args = (spm::evtmgr::EvtVar *)evtEntry->pCurData;
-    spm::evt_door::DokanDesc* curDesc = (spm::evt_door::DokanDesc *)spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
-    s32 _mapGroup = spm::system::rand() % GROUP_COUNT;
-    // thanks again to practice codes for already having error management for this
-    if (msl::string::strcmp(groups[_mapGroup].name, "mac") == 0)
-    {
-        // mac is missing 10, 13, 20-21, 23-29
-        switch (_mapGroup)
-        {
-            case 10:
-            _mapGroup = 11;
-                break;
-            case 13:
-            _mapGroup = 14;
-                break;
-            case 20:
-            _mapGroup = 22;
-                break;
-            case 23:
-            _mapGroup = 30;
-                break;
-        }
-    }
-    s32 roomGroup = spm::system::rand() % groups[_mapGroup].count;
-    if (roomGroup == 0) roomGroup += 1;
-    char nameT[32];
-    char* name = (char*)spm::memory::__memAlloc(spm::memory::Heap::HEAP_MAP, sizeof(nameT));
-    msl::stdio::sprintf(name, "%s_%02d", groups[_mapGroup].name, roomGroup);
-    wii::os::OSReport("name %s\n", name);
-    wii::os::OSReport("name2 %s\n", curDesc->destMapName);
-    curDesc->destMapName = name;
-    return 0;
+        auto* args = (spm::evtmgr::EvtVar*)evtEntry->pCurData;
+        auto* curDesc = (spm::evt_door::DokanDesc*) spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
+         wii::os::OSReport("Dest: %s\n", curDesc->destDoorName);
+
+        curDesc->destMapName = getOrCreateDestination(curDesc->name);
+        return 0;
     }
     return evt_door_set_dokan_descs(evtEntry, firstRun);
 }
 
-s32 new_evt_door_set_map_door_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
+s32 new_evt_door_set_map_door_descs(
+    spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
 {
     if (firstRun)
     {
-    spm::evtmgr::EvtVar* args = (spm::evtmgr::EvtVar *)evtEntry->pCurData;
-    spm::evt_door::MapDoorDesc* curDesc = (spm::evt_door::MapDoorDesc *)spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
-    s32 _mapGroup = spm::system::rand() % GROUP_COUNT;
-    // thanks again to practice codes for already having error management for this
-    if (msl::string::strcmp(groups[_mapGroup].name, "mac") == 0)
-    {
-        // mac is missing 10, 13, 20-21, 23-29
-        switch (_mapGroup)
-        {
-            case 10:
-            _mapGroup = 11;
-                break;
-            case 13:
-            _mapGroup = 14;
-                break;
-            case 20:
-            _mapGroup = 22;
-                break;
-            case 23:
-            _mapGroup = 30;
-                break;
-        }
-    }
-    s32 roomGroup = spm::system::rand() % groups[_mapGroup].count;
-    if (roomGroup == 0) roomGroup += 1;
-    char nameT[32];
-    char* name = (char*)spm::memory::__memAlloc(spm::memory::Heap::HEAP_MAP, sizeof(nameT));
-    msl::stdio::sprintf(name, "%s_%02d", groups[_mapGroup].name, roomGroup);
-    wii::os::OSReport("name %s\n", name);
-    wii::os::OSReport("name2 %s\n", curDesc->destMapName);
-    curDesc->destMapName = name;
-    return 0;
+        auto* args = (spm::evtmgr::EvtVar*)evtEntry->pCurData;
+        auto* curDesc = (spm::evt_door::MapDoorDesc*) spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
+
+        curDesc->destMapName = getOrCreateDestination(curDesc->name_l);
+        return 0;
     }
     return evt_door_set_map_door_descs(evtEntry, firstRun);
 }
 
-s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
+s32 new_evt_machi_set_elv_descs(
+    spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
 {
     if (firstRun)
     {
-    spm::evtmgr::EvtVar* args = (spm::evtmgr::EvtVar *)evtEntry->pCurData;
-    spm::machi::ElvDesc* curDesc = (spm::machi::ElvDesc *)spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
-    s32 _mapGroup = spm::system::rand() % GROUP_COUNT;
-    // thanks again to practice codes for already having error management for this
-    if (msl::string::strcmp(groups[_mapGroup].name, "mac") == 0)
-    {
-        // mac is missing 10, 13, 20-21, 23-29
-        switch (_mapGroup)
-        {
-            case 10:
-            _mapGroup = 11;
-                break;
-            case 13:
-            _mapGroup = 14;
-                break;
-            case 20:
-            _mapGroup = 22;
-                break;
-            case 23:
-            _mapGroup = 30;
-                break;
-        }
-    }
-    s32 roomGroup = spm::system::rand() % groups[_mapGroup].count;
-    if (roomGroup == 0) roomGroup += 1;
-    char nameT[32];
-    char* name = (char*)spm::memory::__memAlloc(spm::memory::Heap::HEAP_MAP, sizeof(nameT));
-    msl::stdio::sprintf(name, "%s_%02d", groups[_mapGroup].name, roomGroup);
-    wii::os::OSReport("name %s\n", name);
-    wii::os::OSReport("name2 %s\n", curDesc->destMapName);
-    curDesc->destMapName = name;
-    return 0;
+        auto* args = (spm::evtmgr::EvtVar*)evtEntry->pCurData;
+        auto* curDesc = (spm::machi::ElvDesc*)
+            spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
+
+        curDesc->destMapName =
+            getOrCreateDestination(curDesc->name);
+        return 0;
     }
     return evt_machi_set_elv_descs(evtEntry, firstRun);
 }
 
 /*
-    General mod functions
+    =========================
+    Mod Entry Point
+    =========================
 */
+
 void main()
 {
-    wii::os::OSReport("SPM Rel Loader: the mod has ran!\n");
+    wii::os::OSReport("SPM Door Rando loaded!\n");
+
     titleScreenCustomTextPatch();
     scanEntrances();
-    evt_door_set_dokan_descs = patch::hookFunction(spm::evt_door::evt_door_set_dokan_descs, new_evt_door_set_dokan_descs);
-    evt_door_set_map_door_descs = patch::hookFunction(spm::evt_door::evt_door_set_map_door_descs, new_evt_door_set_map_door_descs);
-    evt_machi_set_elv_descs = patch::hookFunction(spm::machi::evt_machi_set_elv_descs, new_evt_machi_set_elv_descs);
+    evt_door_set_dokan_descs =
+        patch::hookFunction(
+            spm::evt_door::evt_door_set_dokan_descs,
+            new_evt_door_set_dokan_descs);
+
+    evt_door_set_map_door_descs =
+        patch::hookFunction(
+            spm::evt_door::evt_door_set_map_door_descs,
+            new_evt_door_set_map_door_descs);
+
+    evt_machi_set_elv_descs =
+        patch::hookFunction(
+            spm::machi::evt_machi_set_elv_descs,
+            new_evt_machi_set_elv_descs);
 }
 
-}
+} // namespace mod
