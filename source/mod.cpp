@@ -93,10 +93,10 @@ static MapGroup groups[] = {
     {"gn1",1,5,0},{"gn2",1,6,0},{"gn3",1,16,0},{"gn4",1,17,0},
     {"wa1",1,2,0},//{"wa2",1,25,0},{"wa3",1,25,0},{"wa4",1,26,0},
     {"an1",1,11,0},{"an2",1,10,0},{"an3",1,16,0},{"an4",1,12,0},
-    {"ls1",1,12,0},{"ls2",1,18,0},{"ls3",1,13,0},{"ls4",1,12,0},
+    {"ls1",1,1,0},//{"ls2",1,18,0},{"ls3",1,13,0},{"ls4",1,12,0},
 };
 
-#define GROUP_COUNT 28
+#define GROUP_COUNT 25
 
 /*
 =========================
@@ -115,7 +115,7 @@ struct DoorMapping
 };
 
 static DoorMapping gDoorMappings[MAX_RANDOMIZED_DOORS];
-static int gDoorMappingCount = 0;
+static u32 gDoorMappingCount = 0;
 
 
 /*
@@ -151,10 +151,7 @@ static DoorMapping *findDoorMapping(
 {
   for (int i = 0; i < gDoorMappingCount; i++)
   {
-    if (msl::string::strcmp(
-            gDoorMappings[i].sourceMap, sourceMap) == 0 &&
-        msl::string::strcmp(
-            gDoorMappings[i].entranceName, entranceName) == 0)
+    if (msl::string::strcmp(gDoorMappings[i].sourceMap, sourceMap) == 0 && msl::string::strcmp(gDoorMappings[i].entranceName, entranceName) == 0)
     {
       return &gDoorMappings[i];
     }
@@ -188,12 +185,12 @@ static const char* createRandomDestinationMap()
         goto lab_roomRando;
       }
     }
-    char buffer[32];
-    msl::stdio::sprintf(
-        buffer, "%s_%02d",
-        groups[groupIndex].name, roomIndex);
+    char * buffer = new char[32];
+    msl::stdio::sprintf(buffer, "%s_%02d", groups[groupIndex].name, roomIndex);
     
-    return allocateMapString(buffer);
+    const char* ret = allocateMapString(buffer);
+    delete buffer;
+    return ret;
 }
 
 static const char* pickRandomDestinationDoor(const char* destinationMap)
@@ -231,22 +228,44 @@ static DoorMapping* getOrCreateDoorMapping(
     const char* sourceMap,
     const char* entranceName)
 {
-    DoorMapping* mapping =
-        findDoorMapping(sourceMap, entranceName);
+    if (!entranceName)
+    {
+      entranceName = "default";
+    }
+    DoorMapping* mapping = findDoorMapping(sourceMap, entranceName);
 
     if (mapping)
-        return mapping;
+    {
+      return mapping;
+    }
 
     if (gDoorMappingCount >= MAX_RANDOMIZED_DOORS)
-        return nullptr;
+    {
+      return nullptr;
+    }
 
     mapping = &gDoorMappings[gDoorMappingCount++];
 
     msl::string::strcpy(mapping->sourceMap, sourceMap);
     msl::string::strcpy(mapping->entranceName, entranceName);
 
+    _randomizer:
     mapping->destMapName  = createRandomDestinationMap();
-    mapping->destDoorName = nullptr;
+
+    mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName);
+
+    if (!mapping->destMapName || !mapping->destDoorName)
+    {
+      goto _randomizer;
+    }
+
+    for (u32 i = 0; i < gDoorMappingCount; i++)
+    {
+      if (msl::string::strcmp(gDoorMappings[i].destMapName, mapping->destMapName) == 0 && msl::string::strcmp(gDoorMappings[i].destMapName, mapping->destDoorName) == 0)
+      {
+        goto _randomizer;
+      }
+    }
 
     return mapping;
 }
@@ -359,6 +378,16 @@ s32 new_evt_door_set_dokan_descs(
 
     const char* sourceMapName = desc->mapName;
 
+    if (!sourceMapName)
+    {
+      return evt_machi_set_elv_descs(evtEntry, firstRun);
+    }
+
+    if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
+    {
+      return evt_door_set_map_door_descs(evtEntry, firstRun);
+    }
+
     DoorMapping* mapping =
         getOrCreateDoorMapping(sourceMapName, desc->name);
 
@@ -366,8 +395,7 @@ s32 new_evt_door_set_dokan_descs(
     {
         if (!mapping->destDoorName)
         {
-            mapping->destDoorName =
-                pickRandomDestinationDoor(mapping->destMapName);
+            mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName);
         }
 
         desc->destMapName  = mapping->destMapName;
@@ -390,6 +418,17 @@ s32 new_evt_door_set_map_door_descs(spm::evtmgr::EvtEntry *evtEntry, bool firstR
           spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
 
   const char * sourceMapName = spm::spmario::gp->mapName;
+
+  if (!sourceMapName)
+  {
+    return evt_machi_set_elv_descs(evtEntry, firstRun);
+  }
+
+  if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
+  {
+    return evt_door_set_map_door_descs(evtEntry, firstRun);
+  }
+
   wii::os::OSReport("sourceMapName %s\n", sourceMapName);
 
   DoorMapping *mapping =
@@ -412,8 +451,7 @@ s32 new_evt_door_set_map_door_descs(spm::evtmgr::EvtEntry *evtEntry, bool firstR
   return 0;
 }
 
-s32 new_evt_machi_set_elv_descs(
-    spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
+s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
 {
     if (!firstRun)
         return evt_machi_set_elv_descs(evtEntry, firstRun);
@@ -426,6 +464,16 @@ s32 new_evt_machi_set_elv_descs(
             spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
 
     const char * sourceMapName = spm::spmario::gp->mapName;
+
+    if (!sourceMapName)
+    {
+      return evt_machi_set_elv_descs(evtEntry, firstRun);
+    }
+
+    if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
+    {
+      return evt_door_set_map_door_descs(evtEntry, firstRun);
+    }
 
     DoorMapping* mapping =
         getOrCreateDoorMapping(sourceMapName, elvDesc->name);
@@ -451,6 +499,7 @@ s32 new_evt_machi_set_elv_descs(
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 50)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0D9)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DA)
+    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DB)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0E0)
     //USER_FUNC(spm::evt_msg::evt_msg_print, 1, PTR(quickstartText), 0, 0)
     //USER_FUNC(spm::evt_msg::evt_msg_select, 1, PTR(quickstartOptions))
@@ -460,6 +509,10 @@ s32 new_evt_machi_set_elv_descs(
     USER_FUNC(spm::evt_seq::evt_seq_set_seq, spm::seqdrv::SEQ_MAPCHANGE, PTR("he1_01"), PTR("doa1_l"))
     RETURN()
     EVT_END()
+  
+  EVT_BEGIN(insertNop)
+    SET(LW(0), LW(0))
+  RETURN_FROM_CALL()
 
 /*
 =========================
