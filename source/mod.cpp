@@ -1,14 +1,21 @@
 #include "mod.h"
+#include "evtpatch.h"
 #include "patch.h"
 #include "util.h"
 
 #include <spm/rel/machi.h>
+#include <spm/rel/aa1_01.h>
 #include <spm/camdrv.h>
 #include <spm/evt_door.h>
 #include <spm/evt_sub.h>
 #include <spm/fontmgr.h>
 #include <spm/mapdrv.h>
 #include <spm/map_data.h>
+#include <spm/evt_msg.h>
+#include <spm/evt_seq.h>
+#include <spm/mario_pouch.h>
+#include <spm/evt_pouch.h>
+#include <spm/pausewin.h>
 #include <spm/memory.h>
 #include <spm/seqdrv.h>
 #include <spm/seqdef.h>
@@ -84,12 +91,12 @@ static MapGroup groups[] = {
     {"ta1",1,9,0},{"ta2",1,6,0},{"ta3",1,8,0},{"ta4",1,15,0},
     /*{"sp1",1,7,0},*/{"sp2",1,10,0},/*{"sp3",1,7,0},*/{"sp4",1,17,0},
     {"gn1",1,5,0},{"gn2",1,6,0},{"gn3",1,16,0},{"gn4",1,17,0},
-    {"wa1",1,27,0},{"wa2",1,25,0},{"wa3",1,25,0},{"wa4",1,26,0},
+    {"wa1",1,2,0},//{"wa2",1,25,0},{"wa3",1,25,0},{"wa4",1,26,0},
     {"an1",1,11,0},{"an2",1,10,0},{"an3",1,16,0},{"an4",1,12,0},
     {"ls1",1,12,0},{"ls2",1,18,0},{"ls3",1,13,0},{"ls4",1,12,0},
 };
 
-#define GROUP_COUNT 31
+#define GROUP_COUNT 28
 
 /*
 =========================
@@ -138,21 +145,21 @@ static void initCurrentMapGroup()
 =========================
 */
 
-static DoorMapping* findDoorMapping(
-    const char* sourceMap,
-    const char* entranceName)
+static DoorMapping *findDoorMapping(
+    const char *sourceMap,
+    const char *entranceName)
 {
-    for (int i = 0; i < gDoorMappingCount; i++)
+  for (int i = 0; i < gDoorMappingCount; i++)
+  {
+    if (msl::string::strcmp(
+            gDoorMappings[i].sourceMap, sourceMap) == 0 &&
+        msl::string::strcmp(
+            gDoorMappings[i].entranceName, entranceName) == 0)
     {
-        if (msl::string::strcmp(
-                gDoorMappings[i].sourceMap, sourceMap) == 0 &&
-            msl::string::strcmp(
-                gDoorMappings[i].entranceName, entranceName) == 0)
-        {
-            return &gDoorMappings[i];
-        }
+      return &gDoorMappings[i];
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 static const char* allocateMapString(const char* text)
@@ -167,8 +174,20 @@ static const char* allocateMapString(const char* text)
 static const char* createRandomDestinationMap()
 {
     int groupIndex = spm::system::rand() % GROUP_COUNT;
+    lab_roomRando:
     int roomIndex  = (spm::system::rand() % groups[groupIndex].count) + 1;
 
+    if (roomIndex > groups[groupIndex].count)
+    {
+      roomIndex = groups[groupIndex].count;
+    }
+    if (msl::string::strcmp(groups[groupIndex].name, "mac") == 0)
+    {
+      if (roomIndex == 10 || roomIndex == 13 || roomIndex > 19 && roomIndex != 30)
+      {
+        goto lab_roomRando;
+      }
+    }
     char buffer[32];
     msl::stdio::sprintf(
         buffer, "%s_%02d",
@@ -426,6 +445,21 @@ s32 new_evt_machi_set_elv_descs(
     return 0;
 }
 
+    // Dialogue to determine quickstart or no
+    EVT_BEGIN(determine_quickstart)
+    SET(GSW(0), 17)
+    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 50)
+    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0D9)
+    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DA)
+    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0E0)
+    //USER_FUNC(spm::evt_msg::evt_msg_print, 1, PTR(quickstartText), 0, 0)
+    //USER_FUNC(spm::evt_msg::evt_msg_select, 1, PTR(quickstartOptions))
+    //USER_FUNC(spm::evt_msg::evt_msg_continue)
+    //SWITCH(LW(0))
+    //END_SWITCH()
+    USER_FUNC(spm::evt_seq::evt_seq_set_seq, spm::seqdrv::SEQ_MAPCHANGE, PTR("he1_01"), PTR("doa1_l"))
+    RETURN()
+    EVT_END()
 
 /*
 =========================
@@ -439,12 +473,19 @@ void main()
 
     titleScreenCustomTextPatch();
     scanEntrances();
-
+    evtpatch::evtmgrExtensionInit();
     evt_door_set_dokan_descs = patch::hookFunction(spm::evt_door::evt_door_set_dokan_descs, new_evt_door_set_dokan_descs);
 
     evt_door_set_map_door_descs = patch::hookFunction(spm::evt_door::evt_door_set_map_door_descs, new_evt_door_set_map_door_descs);
 
     evt_machi_set_elv_descs = patch::hookFunction(spm::machi::evt_machi_set_elv_descs, new_evt_machi_set_elv_descs);
+
+    writeWord(spm::mario_pouch::pouchMakePixlNotSelectable, 0x0, BLR);
+    writeWord(spm::mario_pouch::pouchMakeCharNotSelectable, 0x0, BLR); 
+    writeWord(spm::pausewin::pluswinKeyItemMain, 0x664, NOP);
+    writeWord(spm::pausewin::pluswinKeyItemMain, 0x674, NOP);
+    writeWord(spm::pausewin::pluswinKeyItemMain, 0x680, NOP);
+    evtpatch::hookEvtReplace(spm::aa1_01::aa1_01_mario_house_transition_evt, 10, determine_quickstart);
 }
 
 }
