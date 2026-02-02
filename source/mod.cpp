@@ -116,6 +116,7 @@ struct DoorMapping
 
 static DoorMapping gDoorMappings[MAX_RANDOMIZED_DOORS];
 static u32 gDoorMappingCount = 0;
+char mapNameBuffer[32];
 
 
 /*
@@ -185,12 +186,10 @@ static const char* createRandomDestinationMap()
         goto lab_roomRando;
       }
     }
-    char * buffer = new char[32];
+    char buffer[32];
     msl::stdio::sprintf(buffer, "%s_%02d", groups[groupIndex].name, roomIndex);
-    
-    const char* ret = allocateMapString(buffer);
-    delete buffer;
-    return ret;
+    msl::string::strcpy(mapNameBuffer, buffer);
+    return mapNameBuffer;
 }
 
 static const char* pickRandomDestinationDoor(const char* destinationMap)
@@ -210,7 +209,10 @@ static const char* pickRandomDestinationDoor(const char* destinationMap)
             break;
         }
     }
-
+    if (msl::string::strcmp(destinationMap, "ls1_01") == 0)
+    {
+      return "doa1_l";
+    }
     if (groupIndex < 0 || roomIndex < 0)
         return nullptr;
 
@@ -222,6 +224,19 @@ static const char* pickRandomDestinationDoor(const char* destinationMap)
 
     return entranceList->names[
         spm::system::rand() % entranceList->count];
+}
+
+static bool destinationUsed(const char* map, const char* door)
+{
+    for (u32 i = 0; i < gDoorMappingCount; i++)
+    {
+        if (msl::string::strcmp(gDoorMappings[i].destMapName, map) == 0 &&
+            msl::string::strcmp(gDoorMappings[i].destDoorName, door) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 static DoorMapping* getOrCreateDoorMapping(
@@ -244,29 +259,21 @@ static DoorMapping* getOrCreateDoorMapping(
       return nullptr;
     }
 
-    mapping = &gDoorMappings[gDoorMappingCount++];
+    mapping = &gDoorMappings[gDoorMappingCount];
 
     msl::string::strcpy(mapping->sourceMap, sourceMap);
     msl::string::strcpy(mapping->entranceName, entranceName);
 
-    _randomizer:
-    mapping->destMapName  = createRandomDestinationMap();
-
-    mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName);
-
-    if (!mapping->destMapName || !mapping->destDoorName)
+    do
     {
-      goto _randomizer;
-    }
-
-    for (u32 i = 0; i < gDoorMappingCount; i++)
-    {
-      if (msl::string::strcmp(gDoorMappings[i].destMapName, mapping->destMapName) == 0 && msl::string::strcmp(gDoorMappings[i].destMapName, mapping->destDoorName) == 0)
-      {
-        goto _randomizer;
-      }
-    }
-
+      mapping->destMapName = createRandomDestinationMap();
+      mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName);
+      wii::os::OSReport("destMapName %s\n", mapping->destMapName);
+      wii::os::OSReport("destDoorName %s\n", mapping->destDoorName);
+    } while (!mapping->destMapName || !mapping->destDoorName || destinationUsed(mapping->destMapName, mapping->destDoorName));
+    
+    mapping->destMapName = allocateMapString(mapNameBuffer);
+    gDoorMappingCount++;
     return mapping;
 }
 
@@ -500,7 +507,7 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0D9)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DA)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DB)
-    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0E0)
+    //USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0E0)
     //USER_FUNC(spm::evt_msg::evt_msg_print, 1, PTR(quickstartText), 0, 0)
     //USER_FUNC(spm::evt_msg::evt_msg_select, 1, PTR(quickstartOptions))
     //USER_FUNC(spm::evt_msg::evt_msg_continue)
@@ -512,6 +519,38 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
   
   EVT_BEGIN(insertNop)
     SET(LW(0), LW(0))
+  RETURN_FROM_CALL()
+  
+  EVT_BEGIN(gn4)
+    SET(GSW(0), 215)
+  RETURN_FROM_CALL()
+  
+  EVT_BEGIN(gn2)
+    SET(GSW(0), 189)
+  RETURN_FROM_CALL()
+  
+  EVT_BEGIN(sp2)
+    SET(GSW(0), 142)
+  RETURN_FROM_CALL()
+  
+  EVT_BEGIN(ta2)
+    SET(GSW(0), 107)
+  RETURN_FROM_CALL()
+  
+  EVT_BEGIN(ta4)
+    SET(GSW(0), 120)
+  RETURN_FROM_CALL()
+  
+  EVT_BEGIN(ls1)
+    SET(GSW(0), 358)
+  RETURN_FROM_CALL()
+
+  EVT_BEGIN(he1)
+    SET(GSW(0), 17)
+  RETURN_FROM_CALL()
+
+  EVT_BEGIN(he2_mi1)
+    SET(GSW(0), 20)
   RETURN_FROM_CALL()
 
 /*
@@ -538,7 +577,24 @@ void main()
     writeWord(spm::pausewin::pluswinKeyItemMain, 0x664, NOP);
     writeWord(spm::pausewin::pluswinKeyItemMain, 0x674, NOP);
     writeWord(spm::pausewin::pluswinKeyItemMain, 0x680, NOP);
+    spm::map_data::MapData * ls1_md = spm::map_data::mapDataPtr("ls1_01");
     evtpatch::hookEvtReplace(spm::aa1_01::aa1_01_mario_house_transition_evt, 10, determine_quickstart);
+    spm::map_data::MapData * he2_md = spm::map_data::mapDataPtr("he2_07");
+    spm::map_data::MapData * mi1_md = spm::map_data::mapDataPtr("mi1_07");
+    spm::map_data::MapData * ta2_md = spm::map_data::mapDataPtr("ta2_04");
+    spm::map_data::MapData * ta4_md = spm::map_data::mapDataPtr("ta4_12");
+    spm::map_data::MapData * sp2_md = spm::map_data::mapDataPtr("sp2_01");
+    spm::map_data::MapData * gn2_md = spm::map_data::mapDataPtr("gn2_02");
+    spm::map_data::MapData * gn4_md = spm::map_data::mapDataPtr("gn4_03");
+
+    evtpatch::hookEvtReplace(ls1_md->initScript, 1, ls1);
+    evtpatch::hookEvtReplace(he2_md->initScript, 1, he2_mi1);
+    evtpatch::hookEvtReplace(mi1_md->initScript, 1, he2_mi1);
+    evtpatch::hookEvtReplace(ta2_md->initScript, 1, ta2);
+    evtpatch::hookEvtReplace(ta4_md->initScript, 1, ta4);
+    evtpatch::hookEvtReplace(sp2_md->initScript, 1, sp2);
+    evtpatch::hookEvtReplace(gn2_md->initScript, 1, gn2);
+    evtpatch::hookEvtReplace(gn4_md->initScript, 1, gn4);
 }
 
 }
