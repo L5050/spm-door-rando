@@ -11,8 +11,12 @@
 #include <spm/fontmgr.h>
 #include <spm/mapdrv.h>
 #include <spm/map_data.h>
-#include <spm/evt_msg.h>
-#include <spm/evt_seq.h>
+#include <spm/evt_msg.h> 
+#include <spm/evt_snd.h> 
+#include <spm/evt_fade.h> 
+#include <spm/evt_npc.h> 
+#include <spm/evt_mario.h>
+#include <spm/evt_seq.h> 
 #include <spm/mario_pouch.h>
 #include <spm/evt_pouch.h>
 #include <spm/pausewin.h>
@@ -63,6 +67,18 @@ static void titleScreenCustomTextPatch()
     spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main =
         &seq_titleMainOverride;
 }
+
+  spm::npcdrv::NPCTribeAnimDef animsQueen[] = {
+    {0, "Z_1"},
+    {1, "S_1"},
+    {-1, nullptr}
+  };
+
+  const char * queenText = "<majo><col ffddddff><shake><scale 0.7>\n"
+  "Only those with the power of the\n"
+  "ancients may enter the castle\n"
+  "of the tribe of darkness.\n"
+  "<k>\n";
 
 /*
 =========================
@@ -503,7 +519,23 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
     // Dialogue to determine quickstart or no
     EVT_BEGIN(determine_quickstart)
     SET(GSW(0), 17)
+    SET(GSWF(2), 1)
+    SET(GSWF(9), 1)
+    SET(GSWF(12), 1)
+    SET(GSWF(386), 1)
+    SET(GSWF(387), 1)
+    SET(GSWF(392), 1)
+    SET(GSWF(393), 1)
+    SET(GSWF(394), 1)
+    SET(GSWF(395), 1)
+    SET(GSWF(396), 1)
+    SET(GSWF(397), 1)
+    SET(GSWF(398), 1)
+    SET(GSWF(399), 1)
+    SET(GSWF(420), 1)
+    SET(GSWF(431), 1)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 50)
+    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0xE7)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0D9)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DA)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DB)
@@ -517,12 +549,78 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
     RETURN()
     EVT_END()
   
+  EVT_BEGIN(return_to_flipside)
+    USER_FUNC(spm::evt_mario::evt_mario_key_off, 0)
+    WAIT_FRM(1)
+    USER_FUNC(spm::evt_mario::evt_mario_set_pose, PTR("D_5"), 0)
+    WAIT_FRM(5)
+    USER_FUNC(spm::evt_snd::evt_snd_sfxon, PTR("SFX_BS_ZIGEN_HOLE1"))
+    USER_FUNC(spm::evt_npc::evt_npc_entry, PTR("queen"), PTR("MOBJ_EFF_queen_tornade"), 0)
+    USER_FUNC(spm::evt_npc::evt_npc_set_position, PTR("queen"), LW(0), LW(1), LW(2))
+    USER_FUNC(spm::evt_npc::evt_npc_set_property, PTR("queen"), 14, (s32)animsQueen)
+    USER_FUNC(spm::evt_npc::evt_npc_set_anim, PTR("queen"), 1, 1)
+    USER_FUNC(spm::evt_msg::evt_msg_print, 1, PTR(queenText), 0, 0)
+    USER_FUNC(spm::evt_snd::evt_snd_sfxon, PTR("SFX_E_MISS_SMASH1"))
+    WAIT_MSEC(1000)
+    USER_FUNC(spm::evt_fade::evt_set_transition, 4, 3)
+    USER_FUNC(spm::evt_seq::evt_seq_set_seq, spm::seqdrv::SEQ_MAPCHANGE, PTR("mac_02"), PTR("dokan_3"))
+  EVT_END()
+
+  EVT_BEGIN(ls1_check_pos)
+  DO(0)
+    USER_FUNC(spm::evt_mario::evt_mario_get_pos, LW(0), LW(1), LW(2))
+    IFF_LARGE_EQUAL(LW(0), FLOAT(0.0))
+      DO_BREAK()
+    END_IF()
+    WAIT_FRM(1)
+  WHILE()
+  SET(LW(4), 0)
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0DD, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0DE, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0DF, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0E0, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0E1, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0E2, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0E3, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  USER_FUNC(spm::evt_pouch::evt_pouch_check_have_item, 0x0E4, LW(3))
+  IF_EQUAL(LW(3), 1)
+    ADD(LW(4), 1)
+  END_IF()
+  IF_EQUAL(LW(4), 8)
+    RETURN()
+  ELSE()
+    RUN_EVT(return_to_flipside)
+  END_IF()
+  RETURN()
+  EVT_END()
+
   EVT_BEGIN(insertNop)
     SET(LW(0), LW(0))
   RETURN_FROM_CALL()
   
   EVT_BEGIN(gn4)
-    SET(GSW(0), 215)
+    SET(GSW(0), 208)
   RETURN_FROM_CALL()
   
   EVT_BEGIN(gn2)
@@ -543,6 +641,9 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
   
   EVT_BEGIN(ls1)
     SET(GSW(0), 358)
+    USER_FUNC(spm::evt_npc::evt_npc_entry, PTR("queen"), PTR("MOBJ_EFF_queen_tornade"), 0)
+    USER_FUNC(spm::evt_npc::evt_npc_delete, PTR("queen"))
+    RUN_EVT(ls1_check_pos)
   RETURN_FROM_CALL()
 
   EVT_BEGIN(he1)
