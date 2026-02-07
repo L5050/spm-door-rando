@@ -12,6 +12,8 @@
 #include <spm/mapdrv.h>
 #include <spm/map_data.h>
 #include <spm/evt_msg.h> 
+#include <spm/evt_fairy.h> 
+#include <spm/evt_guide.h> 
 #include <spm/evt_snd.h> 
 #include <spm/evt_fade.h> 
 #include <spm/evt_npc.h> 
@@ -77,7 +79,7 @@ static void titleScreenCustomTextPatch()
   const char * queenText = "<majo><col ffddddff><shake><scale 0.7>\n"
   "Only those with the power of the\n"
   "ancients may enter the castle\n"
-  "of the tribe of darkness.\n"
+  "of the tribe of darkness...\n"
   "<k>\n";
 
 /*
@@ -403,12 +405,12 @@ s32 new_evt_door_set_dokan_descs(
 
     if (!sourceMapName)
     {
-      return evt_machi_set_elv_descs(evtEntry, firstRun);
+      return evt_door_set_dokan_descs(evtEntry, firstRun);
     }
 
     if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
     {
-      return evt_door_set_map_door_descs(evtEntry, firstRun);
+      return evt_door_set_dokan_descs(evtEntry, firstRun);
     }
 
     DoorMapping* mapping =
@@ -444,7 +446,7 @@ s32 new_evt_door_set_map_door_descs(spm::evtmgr::EvtEntry *evtEntry, bool firstR
 
   if (!sourceMapName)
   {
-    return evt_machi_set_elv_descs(evtEntry, firstRun);
+    return evt_door_set_map_door_descs(evtEntry, firstRun);
   }
 
   if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
@@ -479,6 +481,11 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
     if (!firstRun)
         return evt_machi_set_elv_descs(evtEntry, firstRun);
 
+    if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
+    {
+      return evt_machi_set_elv_descs(evtEntry, firstRun);
+    }
+
     spm::evtmgr::EvtVar* args =
         (spm::evtmgr::EvtVar*)evtEntry->pCurData;
 
@@ -491,11 +498,6 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
     if (!sourceMapName)
     {
       return evt_machi_set_elv_descs(evtEntry, firstRun);
-    }
-
-    if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
-    {
-      return evt_door_set_map_door_descs(evtEntry, firstRun);
     }
 
     DoorMapping* mapping =
@@ -531,10 +533,12 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
     SET(GSWF(396), 1)
     SET(GSWF(397), 1)
     SET(GSWF(398), 1)
-    SET(GSWF(399), 1)
-    SET(GSWF(420), 1)
+    SET(GSWF(399), 1) 
+    SET(GSWF(420), 1) 
     SET(GSWF(431), 1)
+    SET(GSWF(810), 1) 
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 50)
+    USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0E5)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0xE7)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0D9)
     USER_FUNC(spm::evt_pouch::evt_pouch_add_item, 0x0DA)
@@ -551,12 +555,12 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
   
   EVT_BEGIN(return_to_flipside)
     USER_FUNC(spm::evt_mario::evt_mario_key_off, 0)
-    WAIT_FRM(1)
+    WAIT_FRM(5)
     USER_FUNC(spm::evt_mario::evt_mario_set_pose, PTR("D_5"), 0)
     WAIT_FRM(5)
     USER_FUNC(spm::evt_snd::evt_snd_sfxon, PTR("SFX_BS_ZIGEN_HOLE1"))
     USER_FUNC(spm::evt_npc::evt_npc_entry, PTR("queen"), PTR("MOBJ_EFF_queen_tornade"), 0)
-    USER_FUNC(spm::evt_npc::evt_npc_set_position, PTR("queen"), LW(0), LW(1), LW(2))
+    USER_FUNC(spm::evt_npc::evt_npc_set_position, PTR("queen"), LW(0), FLOAT(0.0), LW(2))
     USER_FUNC(spm::evt_npc::evt_npc_set_property, PTR("queen"), 14, (s32)animsQueen)
     USER_FUNC(spm::evt_npc::evt_npc_set_anim, PTR("queen"), 1, 1)
     USER_FUNC(spm::evt_msg::evt_msg_print, 1, PTR(queenText), 0, 0)
@@ -640,10 +644,15 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
   RETURN_FROM_CALL()
   
   EVT_BEGIN(ls1)
+    USER_FUNC(spm::evt_guide::evt_guide_flag0_onoff, 0, 0x80)
     SET(GSW(0), 358)
     USER_FUNC(spm::evt_npc::evt_npc_entry, PTR("queen"), PTR("MOBJ_EFF_queen_tornade"), 0)
     USER_FUNC(spm::evt_npc::evt_npc_delete, PTR("queen"))
     RUN_EVT(ls1_check_pos)
+  RETURN_FROM_CALL()
+
+  EVT_BEGIN(ls4)
+    USER_FUNC(spm::evt_guide::evt_guide_flag0_onoff, 0, 0x80)
   RETURN_FROM_CALL()
 
   EVT_BEGIN(he1)
@@ -652,6 +661,14 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
 
   EVT_BEGIN(he2_mi1)
     SET(GSW(0), 20)
+  RETURN_FROM_CALL()
+
+  EVT_BEGIN(mac_02)
+    SET(GSW(0), 359)
+  RETURN_FROM_CALL()
+
+  EVT_BEGIN(an1_02)
+    SET(GSW(0), 359)
   RETURN_FROM_CALL()
 
 /*
@@ -679,14 +696,20 @@ void main()
     writeWord(spm::pausewin::pluswinKeyItemMain, 0x674, NOP);
     writeWord(spm::pausewin::pluswinKeyItemMain, 0x680, NOP);
     spm::map_data::MapData * ls1_md = spm::map_data::mapDataPtr("ls1_01");
+    spm::map_data::MapData * ls4_md = spm::map_data::mapDataPtr("ls4_02");
     evtpatch::hookEvtReplace(spm::aa1_01::aa1_01_mario_house_transition_evt, 10, determine_quickstart);
     spm::map_data::MapData * he2_md = spm::map_data::mapDataPtr("he2_07");
     spm::map_data::MapData * mi1_md = spm::map_data::mapDataPtr("mi1_07");
     spm::map_data::MapData * ta2_md = spm::map_data::mapDataPtr("ta2_04");
     spm::map_data::MapData * ta4_md = spm::map_data::mapDataPtr("ta4_12");
     spm::map_data::MapData * sp2_md = spm::map_data::mapDataPtr("sp2_01");
+    spm::map_data::MapData * sp2_08_md = spm::map_data::mapDataPtr("sp2_08");
+    spm::map_data::MapData * gn1_md = spm::map_data::mapDataPtr("gn1_01");
     spm::map_data::MapData * gn2_md = spm::map_data::mapDataPtr("gn2_02");
     spm::map_data::MapData * gn4_md = spm::map_data::mapDataPtr("gn4_03");
+    spm::map_data::MapData * an1_02_md = spm::map_data::mapDataPtr("an1_02");
+    spm::map_data::MapData * mac_02_md = spm::map_data::mapDataPtr("mac_02");
+    spm::map_data::MapData * ta4_13_md = spm::map_data::mapDataPtr("ta4_13");
 
     evtpatch::hookEvtReplace(ls1_md->initScript, 1, ls1);
     evtpatch::hookEvtReplace(he2_md->initScript, 1, he2_mi1);
@@ -694,8 +717,15 @@ void main()
     evtpatch::hookEvtReplace(ta2_md->initScript, 1, ta2);
     evtpatch::hookEvtReplace(ta4_md->initScript, 1, ta4);
     evtpatch::hookEvtReplace(sp2_md->initScript, 1, sp2);
+    evtpatch::hookEvtReplace(sp2_08_md->initScript, 1, sp2);
+    evtpatch::hookEvtReplace(gn1_md->initScript, 1, gn4);
     evtpatch::hookEvtReplace(gn2_md->initScript, 1, gn2);
     evtpatch::hookEvtReplace(gn4_md->initScript, 1, gn4);
+    evtpatch::hookEvtReplace(gn4_md->initScript, 1, gn4);
+    evtpatch::hookEvtReplace(an1_02_md->initScript, 1, an1_02);
+    evtpatch::hookEvtReplace(mac_02_md->initScript, 1, mac_02);
+    evtpatch::hookEvtReplace(ta4_13_md->initScript, 1, an1_02);
+    evtpatch::hookEvtReplace(ls4_md->initScript, 1, ls4);
 }
 
 }
