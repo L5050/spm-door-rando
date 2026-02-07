@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/L5050/spm-headers.git
 	branch = master
-	commit = 736832c805dcb81242bc5c27ce8405daa069a2eb
-	parent = 6ef4700f2e5daf156b9a75c395075d2d75812dec
+	commit = 18777f4e9975489c02ea7e5029f541e03ba1cdfc
+	parent = b8864fbbed07fe185e419b17b4b4758f7b4afd3f
 	method = merge
 	cmdver = 0.4.9
