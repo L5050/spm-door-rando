@@ -696,7 +696,7 @@ void main()
     writeWord(spm::pausewin::pluswinKeyItemMain, 0x674, NOP);
     writeWord(spm::pausewin::pluswinKeyItemMain, 0x680, NOP);
     spm::map_data::MapData * ls1_md = spm::map_data::mapDataPtr("ls1_01");
-    spm::map_data::MapData * ls4_md = spm::map_data::mapDataPtr("ls4_02");
+    spm::map_data::MapData * ls4_md = spm::map_data::mapDataPtr("ls4_13");
     evtpatch::hookEvtReplace(spm::aa1_01::aa1_01_mario_house_transition_evt, 10, determine_quickstart);
     spm::map_data::MapData * he2_md = spm::map_data::mapDataPtr("he2_07");
     spm::map_data::MapData * mi1_md = spm::map_data::mapDataPtr("mi1_07");
