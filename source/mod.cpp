@@ -122,12 +122,12 @@ static MapGroup groups[] = {
 =========================
 */
 
-#define MAX_RANDOMIZED_DOORS 512
+#define MAX_RANDOMIZED_DOORS 1024
 
 struct DoorMapping
 {
     char sourceMap[32];     // e.g. "he1_03"
-    char entranceName[32];  // e.g. "door_a"
+    char entranceName[32];  // e.g. "dokan_1"
     const char* destMapName;
     const char* destDoorName;
 };
@@ -135,7 +135,8 @@ struct DoorMapping
 static DoorMapping gDoorMappings[MAX_RANDOMIZED_DOORS];
 static u32 gDoorMappingCount = 0;
 char mapNameBuffer[32];
-s32 seedDoor = (s32)0xaaaaaaaa;
+const char * curEntranceName = nullptr;
+s32 *seedDoor = (s32 *)&spm::spmario::gp->gsw[1908];
 
 static s32 convertStringToInt(const char *string)
 {
@@ -248,11 +249,11 @@ static const char* allocateMapString(const char* text)
     return out;
 }
 
-static const char* createRandomDestinationMap(s32 seed)
+static const char* createRandomDestinationMap(s32 *seed)
 {
-    int groupIndex = randLocal(seed) % GROUP_COUNT;
+    int groupIndex = rand(seed) % GROUP_COUNT;
     lab_roomRando:
-    int roomIndex  = (randLocal(seed) % groups[groupIndex].count) + 1;
+    int roomIndex  = (rand(seed) % groups[groupIndex].count) + 1;
 
     if (roomIndex > groups[groupIndex].count)
     {
@@ -262,7 +263,7 @@ static const char* createRandomDestinationMap(s32 seed)
     {
       if (roomIndex == 10 || roomIndex == 13 || roomIndex > 19 && roomIndex != 30)
       {
-        seed += 1;
+        *seed = mix32(*seed);
         goto lab_roomRando;
       }
     }
@@ -272,20 +273,17 @@ static const char* createRandomDestinationMap(s32 seed)
     return mapNameBuffer;
 }
 
-static const char* pickRandomDestinationDoor(const char* destinationMap, s32 seed)
+static const char* pickRandomDestinationDoor(const char* destinationMap, s32 *seed)
 {
     int groupIndex = -1;
     int roomIndex  = -1;
 
     for (int i = 0; i < GROUP_COUNT; i++)
     {
-        if (msl::string::strncmp(
-                groups[i].name, destinationMap, 3) == 0)
+        if (msl::string::strncmp(groups[i].name, destinationMap, 3) == 0)
         {
             groupIndex = i;
-            roomIndex =
-                (destinationMap[4] - '0') * 10 +
-                (destinationMap[5] - '0') - 1;
+            roomIndex = (destinationMap[4] - '0') * 10 + (destinationMap[5] - '0') - 1;
             break;
         }
     }
@@ -303,7 +301,7 @@ static const char* pickRandomDestinationDoor(const char* destinationMap, s32 see
         return nullptr;
 
     return entranceList->names[
-        randLocal(seed) % entranceList->count];
+        rand(seed) % entranceList->count];
 }
 
 static bool destinationUsed(const char* map, const char* door)
@@ -325,6 +323,7 @@ static DoorMapping* getOrCreateDoorMapping(const char* sourceMap, const char* en
     {
       entranceName = "default";
     }
+    curEntranceName = entranceName;
     DoorMapping* mapping = findDoorMapping(sourceMap, entranceName);
 
     if (mapping)
@@ -342,13 +341,14 @@ static DoorMapping* getOrCreateDoorMapping(const char* sourceMap, const char* en
     msl::string::strcpy(mapping->sourceMap, sourceMap);
     msl::string::strcpy(mapping->entranceName, entranceName);
 
-    s32 newSeed = door_seed(seedDoor, convertMapName());
+    s32 newSeed = door_seed(*seedDoor, convertMapName() ^ convertStringToInt(entranceName));
     do
     {
-      mapping->destMapName = createRandomDestinationMap(newSeed);
-      mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName, newSeed);
-      newSeed *= 13;
-    } while (!mapping->destMapName || !mapping->destDoorName || destinationUsed(mapping->destMapName, mapping->destDoorName));
+      mapping->destMapName = createRandomDestinationMap(&newSeed);
+      mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName, &newSeed);
+      newSeed = newSeed * 1664525 + 1013904223;
+      newSeed = mix32(newSeed);
+    } while (!mapping->destMapName || !mapping->destDoorName || (int)mapping->destDoorName != 0x2 || destinationUsed(mapping->destMapName, mapping->destDoorName));
       wii::os::OSReport("destMapName %s\n", mapping->destMapName);
       wii::os::OSReport("destDoorName %s\n", mapping->destDoorName);
     
@@ -416,6 +416,24 @@ static EntranceNameList* scanScript(const int* script)
     return list;
 }
 
+static void randomizeDoors()
+{
+  for (u32 i = 0; i < GROUP_COUNT; i++)
+  {
+    for (int j = 0; j < groups[i].count; j++)
+    {
+      for (int e = 0; e < groups[i].entranceNames[j]->count; e++)
+      {
+        char name[32];
+        msl::stdio::sprintf(name, "%s_%02d", groups[i].name, j+1);
+        wii::os::OSReport("rando map entrance %s\n", name);
+        wii::os::OSReport("rando door entrance %s\n", groups[i].entranceNames[j]->names[e]);
+        getOrCreateDoorMapping(name, groups[i].entranceNames[j]->names[e]);
+      }
+    }
+  }
+}
+
 static void scanEntrances()
 {
     for (u32 i = 0; i < GROUP_COUNT; i++)
@@ -479,12 +497,20 @@ s32 new_evt_door_set_dokan_descs(
     {
       return evt_door_set_dokan_descs(evtEntry, firstRun);
     }
+    s32 pipeCount = spm::evtmgr_cmd::evtGetValue(evtEntry, args[1]);
+    for (s32 i = 0; i < pipeCount; i++)
+    {
 
-    DoorMapping* mapping =
-        getOrCreateDoorMapping(sourceMapName, desc->name);
+      DoorMapping *mapping = getOrCreateDoorMapping(sourceMapName, desc[i].name);
 
-    desc->destMapName  = mapping->destMapName;
-    desc->destDoorName = mapping->destDoorName;
+      if (mapping)
+      {
+        wii::os::OSReport("destination map %s\n", mapping->destMapName);
+        wii::os::OSReport("destination pipe %s\n", mapping->destDoorName);
+        desc[i].destMapName = mapping->destMapName;
+        desc[i].destDoorName = mapping->destDoorName;
+      }
+    }
 
     return 0;
 }
@@ -566,8 +592,8 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
 
     if (mapping && !mapping->destDoorName)
     {
-      s32 newSeed = door_seed(seedDoor, convertMapName());
-      mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName, newSeed);
+      s32 newSeed = door_seed(*seedDoor, convertMapName() ^ convertStringToInt(elvDesc->name));
+      mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName, &newSeed);
     }
 
     if (mapping)
@@ -581,7 +607,8 @@ s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
 
 s32 initSeed(spm::evtmgr::EvtEntry * evtEntry, bool firstRun)
 {
-  seedDoor = convertStringToInt(spm::spmario::gp->saveName);
+  *seedDoor = convertStringToInt(spm::spmario::gp->saveName);
+  randomizeDoors();
   return 2;
 }
 
@@ -714,13 +741,21 @@ EVT_DECLARE_USER_FUNC(initSeed, 0)
     SET(GSW(0), 107)
   RETURN_FROM_CALL()
   
+  EVT_BEGIN(ta3)
+    SET(GSW(0), 360)
+  RETURN_FROM_CALL()
+
   EVT_BEGIN(ta4)
     SET(GSW(0), 120)
   RETURN_FROM_CALL()
   
   EVT_BEGIN(ls1)
     USER_FUNC(spm::evt_guide::evt_guide_flag0_onoff, 0, 0x80)
-    SET(GSW(0), 358)
+    SET(GSW(0), 360)
+    IF_EQUAL(GSWF(1600), 0)
+      SET(GSWF(1600), 1)
+      SET(GSW(0), 358)
+    END_IF()
     USER_FUNC(spm::evt_npc::evt_npc_entry, PTR("queen"), PTR("MOBJ_EFF_queen_tornade"), 0)
     USER_FUNC(spm::evt_npc::evt_npc_delete, PTR("queen"))
     RUN_EVT(ls1_check_pos)
@@ -739,6 +774,7 @@ EVT_DECLARE_USER_FUNC(initSeed, 0)
   RETURN_FROM_CALL()
 
   EVT_BEGIN(mac_02)
+    USER_FUNC(initSeed)
     SET(GSW(0), 359)
   RETURN_FROM_CALL()
 
@@ -776,6 +812,7 @@ void main()
     spm::map_data::MapData * he2_md = spm::map_data::mapDataPtr("he2_07");
     spm::map_data::MapData * mi1_md = spm::map_data::mapDataPtr("mi1_07");
     spm::map_data::MapData * ta2_md = spm::map_data::mapDataPtr("ta2_04");
+    spm::map_data::MapData * ta3_md = spm::map_data::mapDataPtr("ta3_01");
     spm::map_data::MapData * ta4_md = spm::map_data::mapDataPtr("ta4_12");
     spm::map_data::MapData * sp2_md = spm::map_data::mapDataPtr("sp2_01");
     spm::map_data::MapData * sp2_08_md = spm::map_data::mapDataPtr("sp2_08");
@@ -790,6 +827,7 @@ void main()
     evtpatch::hookEvtReplace(he2_md->initScript, 1, he2_mi1);
     evtpatch::hookEvtReplace(mi1_md->initScript, 1, he2_mi1);
     evtpatch::hookEvtReplace(ta2_md->initScript, 1, ta2);
+    evtpatch::hookEvtReplace(ta3_md->initScript, 1, ta3);
     evtpatch::hookEvtReplace(ta4_md->initScript, 1, ta4);
     evtpatch::hookEvtReplace(sp2_md->initScript, 1, sp2);
     evtpatch::hookEvtReplace(sp2_08_md->initScript, 1, sp2);
