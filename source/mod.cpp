@@ -172,7 +172,7 @@ static int rand(s32* RANDOM_SEED)
   {
     *RANDOM_SEED = *RANDOM_SEED * 0x5d588b65 + 1;
   } while (0x7fff < *RANDOM_SEED / 0x1ffff);
-  return *RANDOM_SEED / 0x1ffff;
+  return ((u32)*RANDOM_SEED) / 0x1ffff;
 }
 
 static int randLocal(s32 RANDOM_SEED)
@@ -342,15 +342,37 @@ static DoorMapping* getOrCreateDoorMapping(const char* sourceMap, const char* en
     msl::string::strcpy(mapping->entranceName, entranceName);
 
     s32 newSeed = door_seed(*seedDoor, convertMapName() ^ convertStringToInt(entranceName));
+    int attempts = 0;
     do
     {
-      mapping->destMapName = createRandomDestinationMap(&newSeed);
-      mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName, &newSeed);
-      newSeed = newSeed * 1664525 + 1013904223;
-      newSeed = mix32(newSeed);
-    } while (!mapping->destMapName || !mapping->destDoorName || (int)mapping->destDoorName != 0x2 || destinationUsed(mapping->destMapName, mapping->destDoorName));
-      wii::os::OSReport("destMapName %s\n", mapping->destMapName);
-      wii::os::OSReport("destDoorName %s\n", mapping->destDoorName);
+        mapping->destMapName = createRandomDestinationMap(&newSeed);
+        mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName, &newSeed);
+        newSeed = newSeed * 1664525 + 1013904223;
+        newSeed = mix32(newSeed);
+
+        attempts++;
+        /*
+        if ((attempts % 1000) == 0)
+        {
+            wii::os::OSReport(
+                "stuck? src=%s/%s attempts=%d map=%s door=%s used=%d\n",
+                sourceMap,
+                entranceName,
+                attempts,
+                mapping->destMapName ? mapping->destMapName : "(null)",
+                mapping->destDoorName ? mapping->destDoorName : "(null)",
+                (mapping->destMapName && mapping->destDoorName) ? destinationUsed(mapping->destMapName, mapping->destDoorName) : -1
+            );
+        }*/
+
+        if (attempts > 20000)
+        {
+            wii::os::OSReport("FAILED TO FIND DEST FOR %s / %s\n", sourceMap, entranceName);
+            return nullptr;
+        }
+
+    } while (!mapping->destMapName || !mapping->destDoorName || destinationUsed(mapping->destMapName, mapping->destDoorName));
+      wii::os::OSReport("%s / %s ---> %s / %s\n", sourceMap, entranceName, mapping->destMapName, mapping->destDoorName);
     
     mapping->destMapName = allocateMapString(mapNameBuffer);
     gDoorMappingCount++;
@@ -368,6 +390,7 @@ static EntranceNameList* scanScript(const int* script)
 {
     if (!script)
     {
+        wii::os::OSReport("SCRIPT MISSING!\n");
         EntranceNameList* l =
             (EntranceNameList*)new int[1];
         l->count = 0;
@@ -409,9 +432,21 @@ static EntranceNameList* scanScript(const int* script)
     list->count = total;
 
     int n = 0;
-    for (int i=0;i<dc;i++) list->names[n++] = d[i].name;
-    for (int i=0;i<mc;i++) list->names[n++] = m[i].name_l;
-    for (int i=0;i<ec;i++) list->names[n++] = e[i].name;
+    for (int i=0;i<dc;i++) 
+    {
+      list->names[n++] = d[i].name;
+      wii::os::OSReport("DokanName: %s DokanDestMap %s \n", d[i].name, d[i].destMapName);
+    }
+    for (int i=0;i<mc;i++) 
+    {
+      list->names[n++] = m[i].name_l;
+      wii::os::OSReport("MapDoorName: %s  \n", m[i].name_l);
+    }
+    for (int i=0;i<ec;i++) 
+    {
+      list->names[n++] = e[i].name;
+      wii::os::OSReport("nElvDescName: %s  \n", e[i].name);
+    }
 
     return list;
 }
@@ -422,40 +457,66 @@ static void randomizeDoors()
   {
     for (int j = 0; j < groups[i].count; j++)
     {
+      //wii::os::OSReport("Group Count: %d\n", groups[i].count);
+      EntranceNameList* list = groups[i].entranceNames[j];
+      if (!list)
+        continue;
+
       for (int e = 0; e < groups[i].entranceNames[j]->count; e++)
       {
+        const char* door = list->names[e];
+        if (!door)
+          continue;
+        
         char name[32];
         msl::stdio::sprintf(name, "%s_%02d", groups[i].name, j+1);
-        wii::os::OSReport("rando map entrance %s\n", name);
-        wii::os::OSReport("rando door entrance %s\n", groups[i].entranceNames[j]->names[e]);
+        //wii::os::OSReport("rando map entrance %s\n", name);
+        //wii::os::OSReport("rando door entrance %s\n", groups[i].entranceNames[j]->names[e]);
         getOrCreateDoorMapping(name, groups[i].entranceNames[j]->names[e]);
       }
     }
   }
 }
 
+mod::EntranceNameList * test;
+
 static void scanEntrances()
 {
-    for (u32 i = 0; i < GROUP_COUNT; i++)
+  for (u32 i = 0; i < GROUP_COUNT; i++)
+  {
+    groups[i].entranceNames =
+        new EntranceNameList *[groups[i].count]();
+
+    for (int j = 0; j < groups[i].count; j++)
     {
-        groups[i].entranceNames =
-            new EntranceNameList*[groups[i].count];
+      char name[32];
+      msl::stdio::sprintf(
+          name, "%s_%02d",
+          groups[i].name, j + 1);
 
-        for (int j = 0; j < groups[i].count; j++)
+      spm::map_data::MapData *md =
+          spm::map_data::mapDataPtr(name);
+
+      if (md && (int *)md->initScript != 0)
+      {
+        wii::os::OSReport("Name: %s\n", name);
+        groups[i].entranceNames[j] = test =
+            scanScript(md ? (int *)md->initScript : nullptr);
+        if (test->count == 0)
         {
-            char name[32];
-            msl::stdio::sprintf(
-                name, "%s_%02d",
-                groups[i].name, j+1
-            );
-
-            spm::map_data::MapData* md =
-                spm::map_data::mapDataPtr(name);
-
-            groups[i].entranceNames[j] =
-                scanScript(md ? (int*)md->initScript : nullptr);
+          wii::os::OSReport("\n\nCOUNT ZERO\n\n");
         }
+        else
+        {
+          for (int e = 0; e < test->count; e++)
+          {
+            if (test->names[e])
+              wii::os::OSReport("rando door entrance init %s\n", test->names[e]);
+          }
+        }
+      }
     }
+  }
 }
 
 /*
@@ -563,46 +624,50 @@ s32 new_evt_door_set_map_door_descs(spm::evtmgr::EvtEntry *evtEntry, bool firstR
   return 0;
 }
 
-s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry* evtEntry, bool firstRun)
+s32 new_evt_machi_set_elv_descs(spm::evtmgr::EvtEntry *evtEntry, bool firstRun)
 {
-    if (!firstRun)
-        return evt_machi_set_elv_descs(evtEntry, firstRun);
+  if (!firstRun)
+    return evt_machi_set_elv_descs(evtEntry, firstRun);
 
-    if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
-    {
-      return evt_machi_set_elv_descs(evtEntry, firstRun);
-    }
+  if (msl::string::strstr(spm::spmario::gp->mapName, "ls") != 0)
+  {
+    return evt_machi_set_elv_descs(evtEntry, firstRun);
+  }
 
-    spm::evtmgr::EvtVar* args =
-        (spm::evtmgr::EvtVar*)evtEntry->pCurData;
+  spm::evtmgr::EvtVar *args =
+      (spm::evtmgr::EvtVar *)evtEntry->pCurData;
 
-    spm::machi::ElvDesc* elvDesc =
-        (spm::machi::ElvDesc*)
-            spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
+  spm::machi::ElvDesc *elvDesc =
+      (spm::machi::ElvDesc *)
+          spm::evtmgr_cmd::evtGetValue(evtEntry, *args);
 
-    const char * sourceMapName = spm::spmario::gp->mapName;
+  const char *sourceMapName = spm::spmario::gp->mapName;
 
-    if (!sourceMapName)
-    {
-      return evt_machi_set_elv_descs(evtEntry, firstRun);
-    }
+  s32 doorCount = spm::evtmgr_cmd::evtGetValue(evtEntry, args[1]);
 
-    DoorMapping* mapping =
-        getOrCreateDoorMapping(sourceMapName, elvDesc->name);
+  if (!sourceMapName)
+  {
+    return evt_machi_set_elv_descs(evtEntry, firstRun);
+  }
 
-    if (mapping && !mapping->destDoorName)
-    {
-      s32 newSeed = door_seed(*seedDoor, convertMapName() ^ convertStringToInt(elvDesc->name));
-      mapping->destDoorName = pickRandomDestinationDoor(mapping->destMapName, &newSeed);
-    }
+  DoorMapping *mapping =
+      getOrCreateDoorMapping(sourceMapName, elvDesc->name);
+
+  for (s32 i = 0; i < doorCount; i++)
+  {
+
+    DoorMapping *mapping = getOrCreateDoorMapping(sourceMapName, elvDesc[i].name);
 
     if (mapping)
     {
-        elvDesc->destMapName  = mapping->destMapName;
-        elvDesc->destDoorName = mapping->destDoorName;
+      wii::os::OSReport("destination map %s\n", mapping->destMapName);
+      wii::os::OSReport("destination door %s\n", mapping->destDoorName);
+      elvDesc[i].destMapName = mapping->destMapName;
+      elvDesc[i].destDoorName = mapping->destDoorName;
     }
+  }
 
-    return 0;
+  return 0;
 }
 
 s32 initSeed(spm::evtmgr::EvtEntry * evtEntry, bool firstRun)
