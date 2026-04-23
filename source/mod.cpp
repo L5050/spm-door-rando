@@ -386,7 +386,7 @@ static DoorMapping* getOrCreateDoorMapping(const char* sourceMap, const char* en
 =========================
 */
 
-static EntranceNameList* scanScript(const int* script)
+static EntranceNameList* scanScript(const int* script, const char * name)
 {
     if (!script)
     {
@@ -440,10 +440,13 @@ static EntranceNameList* scanScript(const int* script)
       wii::os::OSReport("DokanName: %s DokanDestMap %s \n", d[i].name, d[i].destMapName);
       }
     }
-    for (int i=0;i<mc;i++) 
+    for (int i = 0; i < mc; i++)
     {
-      list->names[n++] = m[i].name_l;
-      wii::os::OSReport("MapDoorName: %s  \n", m[i].name_l);
+      if (msl::string::strcmp(name, "mac_02") != 0)
+      {
+        list->names[n++] = m[i].name_l;
+        wii::os::OSReport("MapDoorName: %s  \n", m[i].name_l);
+      }
     }
     for (int i=0;i<ec;i++) 
     {
@@ -504,7 +507,7 @@ static void scanEntrances()
       {
         wii::os::OSReport("Name: %s\n", name);
         groups[i].entranceNames[j] = test =
-            scanScript(md ? (int *)md->initScript : nullptr);
+            scanScript(md ? (int *)md->initScript : nullptr, name);
         if (test->count == 0)
         {
           wii::os::OSReport("\n\nCOUNT ZERO\n\n");
