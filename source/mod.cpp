@@ -434,8 +434,11 @@ static EntranceNameList* scanScript(const int* script)
     int n = 0;
     for (int i=0;i<dc;i++) 
     {
+      if (msl::string::strcmp(d[i].name, "dokan_m") != 0)
+      {
       list->names[n++] = d[i].name;
       wii::os::OSReport("DokanName: %s DokanDestMap %s \n", d[i].name, d[i].destMapName);
+      }
     }
     for (int i=0;i<mc;i++) 
     {
@@ -843,6 +846,10 @@ EVT_DECLARE_USER_FUNC(initSeed, 0)
     SET(GSW(0), 359)
   RETURN_FROM_CALL()
 
+  EVT_BEGIN(ta4_01)
+    SET(GSW(0), 359)
+  RETURN_FROM_CALL()
+
   EVT_BEGIN(an1_02)
     SET(GSW(0), 359)
   RETURN_FROM_CALL()
@@ -886,6 +893,7 @@ void main()
     spm::map_data::MapData * gn4_md = spm::map_data::mapDataPtr("gn4_03");
     spm::map_data::MapData * an1_02_md = spm::map_data::mapDataPtr("an1_02");
     spm::map_data::MapData * mac_02_md = spm::map_data::mapDataPtr("mac_02");
+    spm::map_data::MapData * ta4_01_md = spm::map_data::mapDataPtr("ta4_01");
     spm::map_data::MapData * ta4_13_md = spm::map_data::mapDataPtr("ta4_13");
 
     evtpatch::hookEvtReplace(ls1_md->initScript, 1, ls1);
@@ -902,6 +910,7 @@ void main()
     evtpatch::hookEvtReplace(gn4_md->initScript, 1, gn4);
     evtpatch::hookEvtReplace(an1_02_md->initScript, 1, an1_02);
     evtpatch::hookEvtReplace(mac_02_md->initScript, 1, mac_02);
+    evtpatch::hookEvtReplace(ta4_01_md->initScript, 1, ta4_01);
     evtpatch::hookEvtReplace(ta4_13_md->initScript, 1, an1_02);
     evtpatch::hookEvtReplace(ls4_md->initScript, 1, ls4);
 }
