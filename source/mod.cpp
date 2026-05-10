@@ -38,11 +38,63 @@ namespace mod {
 
 /*
 =========================
- Title Screen Text
+ Title Screen Text + blah balh balh
 =========================
 */
 
 static spm::seqdef::SeqFunc* seq_titleMainReal;
+static spm::seqdef::SeqFunc *seq_gameMainReal;
+
+static void drawSeq()
+{
+    wii::gx::GXColor green = {
+        0,
+        255,
+        0,
+        255
+    };
+    f32 scale = 0.8f;
+    char buffer [50];
+    msl::stdio::sprintf(buffer, "SEQ: %d", spm::spmario::gp->gsw0);
+    spm::fontmgr::FontDrawStart();
+    spm::fontmgr::FontDrawEdge();
+    spm::fontmgr::FontDrawColor(&green);
+    spm::fontmgr::FontDrawScale(scale);
+    spm::fontmgr::FontDrawNoiseOff();
+    spm::fontmgr::FontDrawRainbowColorOff();
+    f32 x = -((spm::fontmgr::FontGetMessageWidth(buffer) * scale) / 2);
+    spm::fontmgr::FontDrawString(x-300, 40.0f, buffer);
+    return;
+}
+
+static void drawDoor()
+{
+    wii::gx::GXColor green = {
+        0,
+        255,
+        0,
+        255
+    };
+    f32 scale = 0.8f;
+    char buffer [50];
+    msl::stdio::sprintf(buffer, "Room: %s", spm::spmario::gp->mapName);
+    spm::fontmgr::FontDrawStart();
+    spm::fontmgr::FontDrawEdge();
+    spm::fontmgr::FontDrawColor(&green);
+    spm::fontmgr::FontDrawScale(scale);
+    spm::fontmgr::FontDrawNoiseOff();
+    spm::fontmgr::FontDrawRainbowColorOff();
+    f32 x = -((spm::fontmgr::FontGetMessageWidth(buffer) * scale) / 2);
+    spm::fontmgr::FontDrawString(x-300, 70.0f, buffer);
+    return;
+}
+
+static void seq_gameMainOverride(spm::seqdrv::SeqWork* wp)
+{
+  drawSeq();
+  drawDoor();
+  return seq_gameMainReal(wp);
+}
 
 static void seq_titleMainOverride(spm::seqdrv::SeqWork* wp)
 {
@@ -60,15 +112,15 @@ static void seq_titleMainOverride(spm::seqdrv::SeqWork* wp)
     f32 x = -((spm::fontmgr::FontGetMessageWidth(msg) * scale) / 2);
     spm::fontmgr::FontDrawString(x, 200.0f, msg);
 
-    seq_titleMainReal(wp);
+    return seq_titleMainReal(wp);
 }
 
 static void titleScreenCustomTextPatch()
 {
-    seq_titleMainReal =
-        spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main;
-    spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main =
-        &seq_titleMainOverride;
+    seq_titleMainReal = spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main;
+    seq_gameMainReal = spm::seqdef::seq_data[spm::seqdrv::SEQ_GAME].main;
+    spm::seqdef::seq_data[spm::seqdrv::SEQ_TITLE].main = &seq_titleMainOverride;
+    spm::seqdef::seq_data[spm::seqdrv::SEQ_GAME].main = &seq_gameMainOverride;
 }
 
   spm::npcdrv::NPCTribeAnimDef animsQueen[] = {
