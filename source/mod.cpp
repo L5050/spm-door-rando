@@ -15,6 +15,7 @@
 #include <spm/evt_fairy.h> 
 #include <spm/evt_guide.h> 
 #include <spm/evt_snd.h> 
+#include <spm/hud.h> 
 #include <spm/evt_fade.h> 
 #include <spm/evt_npc.h> 
 #include <spm/evt_mario.h>
@@ -149,22 +150,6 @@ static s32 convertStringToInt(const char *string)
   return static_cast<s32>(value) + msl::string::strlen(string);
 }
 
-static s32 convertMapName()
-{
-  const char *mapName = spm::spmario::gp->mapName;
-  u32 head =
-      (static_cast<u32>(static_cast<unsigned char>(mapName[0])) << 24) |
-      (static_cast<u32>(static_cast<unsigned char>(mapName[1])) << 16) |
-      (static_cast<u32>(static_cast<unsigned char>(mapName[2])) << 8)  |
-      (static_cast<u32>(static_cast<unsigned char>(mapName[3])));
-
-  u32 tail = (static_cast<u32>(static_cast<unsigned char>(mapName[4])) << 8) | (static_cast<u32>(static_cast<unsigned char>(mapName[5])));
-
-  u32 combined = head * tail;
-
-  return static_cast<s32>(combined);
-}
-
 // not needed for this project, I made this for yme because this function will be better suited for a linear algoritm but spm-door-rando is far from linear
 static int rand(s32* RANDOM_SEED)
 {
@@ -198,12 +183,6 @@ static s32 door_seed(s32 global_seed, s32 door_id)
 {
     return mix32(global_seed ^ door_id);
 }
-
-/*
-=========================
- Current Source Group
-=========================
-*/
 
 static s32 gCurrentMapGroup = -1;
 
@@ -341,7 +320,7 @@ static DoorMapping* getOrCreateDoorMapping(const char* sourceMap, const char* en
     msl::string::strcpy(mapping->sourceMap, sourceMap);
     msl::string::strcpy(mapping->entranceName, entranceName);
 
-    s32 newSeed = door_seed(*seedDoor, convertMapName() ^ convertStringToInt(entranceName));
+    s32 newSeed = door_seed(*seedDoor, convertStringToInt(entranceName));
     int attempts = 0;
     do
     {
@@ -382,7 +361,7 @@ static DoorMapping* getOrCreateDoorMapping(const char* sourceMap, const char* en
 
 /*
 =========================
- Script Scanning
+ Script Scanning from Practice Codes
 =========================
 */
 
@@ -531,6 +510,7 @@ static void scanEntrances()
 =========================
 */
 
+void (*hudLoadStats)(void);
 s32 (*evt_door_set_dokan_descs)(spm::evtmgr::EvtEntry*, bool);
 s32 (*evt_door_set_map_door_descs)(spm::evtmgr::EvtEntry*, bool);
 s32 (*evt_machi_set_elv_descs)(spm::evtmgr::EvtEntry*, bool);
@@ -845,7 +825,6 @@ EVT_DECLARE_USER_FUNC(initSeed, 0)
   RETURN_FROM_CALL()
 
   EVT_BEGIN(mac_02)
-    USER_FUNC(initSeed)
     SET(GSW(0), 359)
   RETURN_FROM_CALL()
 
@@ -856,6 +835,18 @@ EVT_DECLARE_USER_FUNC(initSeed, 0)
   EVT_BEGIN(an1_02)
     SET(GSW(0), 359)
   RETURN_FROM_CALL()
+
+  EVT_BEGIN(an4_04)
+    SET(GSW(0), 359)
+  RETURN_FROM_CALL()
+
+void new_hudLoadStats()
+{
+  *seedDoor = convertStringToInt(spm::spmario::gp->saveName);
+  randomizeDoors();
+  wii::os::OSReport("SPM Door Rando has loaded %s\n", spm::spmario::gp->saveName);
+  return hudLoadStats();
+}
 
 /*
 =========================
@@ -870,6 +861,9 @@ void main()
     titleScreenCustomTextPatch();
     scanEntrances();
     evtpatch::evtmgrExtensionInit();
+    hudLoadStats = patch::hookFunction(spm::hud::hudLoadStats, new_hudLoadStats);
+
+
     evt_door_set_dokan_descs = patch::hookFunction(spm::evt_door::evt_door_set_dokan_descs, new_evt_door_set_dokan_descs);
 
     evt_door_set_map_door_descs = patch::hookFunction(spm::evt_door::evt_door_set_map_door_descs, new_evt_door_set_map_door_descs);
@@ -895,6 +889,7 @@ void main()
     spm::map_data::MapData * gn2_md = spm::map_data::mapDataPtr("gn2_02");
     spm::map_data::MapData * gn4_md = spm::map_data::mapDataPtr("gn4_03");
     spm::map_data::MapData * an1_02_md = spm::map_data::mapDataPtr("an1_02");
+    spm::map_data::MapData * an4_04_md = spm::map_data::mapDataPtr("an4_04");
     spm::map_data::MapData * mac_02_md = spm::map_data::mapDataPtr("mac_02");
     spm::map_data::MapData * ta4_01_md = spm::map_data::mapDataPtr("ta4_01");
     spm::map_data::MapData * ta4_13_md = spm::map_data::mapDataPtr("ta4_13");
@@ -913,8 +908,9 @@ void main()
     evtpatch::hookEvtReplace(gn4_md->initScript, 1, gn4);
     evtpatch::hookEvtReplace(an1_02_md->initScript, 1, an1_02);
     evtpatch::hookEvtReplace(mac_02_md->initScript, 1, mac_02);
-    evtpatch::hookEvtReplace(ta4_01_md->initScript, 1, ta4_01);
+    evtpatch::hookEvtReplace(ta4_01_md->initScript, 1, ta4_01); 
     evtpatch::hookEvtReplace(ta4_13_md->initScript, 1, an1_02);
+    evtpatch::hookEvtReplace(an4_04_md->initScript, 1, an4_04);
     evtpatch::hookEvtReplace(ls4_md->initScript, 1, ls4);
 }
 
